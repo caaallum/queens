@@ -11,7 +11,9 @@ FetchContent_Declare(SDL3
 )
 FetchContent_MakeAvailable(SDL3)
 
-add_executable(${PROJECT_NAME} main.c grid.c grid.h level.c level.h vector.c vector.h vector2.h intset.h intset.c)
+FILE(GLOB SRC src/*.h src/*.c)
+
+add_executable(${PROJECT_NAME} ${SRC})
 target_link_libraries(${PROJECT_NAME} PRIVATE SDL3::SDL3)
 
 find_library(MATH_LIBRARY m)
