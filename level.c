@@ -154,3 +154,9 @@ level_generate(int rows, int cols) {
 
 	return level;
 }
+
+void
+level_destroy(level_t* level) {
+	free(level->regions);
+	free(level);
+}

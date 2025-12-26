@@ -9,4 +9,6 @@ typedef struct {
 
 level_t* level_generate(int rows, int cols);
 
+void level_destroy(level_t* level);
+
 #endif /* __LEVEL_H */

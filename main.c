@@ -14,12 +14,11 @@
 /* We will use this renderer to draw into this window every frame. */
 static SDL_Window* window = NULL;
 static SDL_Renderer* renderer = NULL;
-static level_t* level = NULL;
 static grid_t* grid = NULL;
 
 /* This function runs once at startup. */
 SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
-    SDL_SetAppMetadata("Example Renderer Clear", "1.0", "com.example.renderer-clear");
+    SDL_SetAppMetadata("Queens", "1.0", "com.caaallum.queens");
 
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         SDL_Log("Couldn't initialize SDL: %s", SDL_GetError());
@@ -34,9 +33,11 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
 
     srand((unsigned)time(NULL));
 
-    level = level_generate(GRID_WIDTH, GRID_HEIGHT);
+    level_t* level = level_generate(GRID_WIDTH, GRID_HEIGHT);
 
 	grid = grid_create(level, 80.0f);
+
+    level_destroy(level);
 
     return SDL_APP_CONTINUE;  /* carry on with the program! */
 }
@@ -57,8 +58,11 @@ SDL_AppResult SDL_AppIterate(void* appstate) {
     const double now = ((double)SDL_GetTicks()) / 1000.0;  /* convert from milliseconds to seconds. */
 
     if (grid_check_win(grid)) {
-		printf("You win!\n");
-		return SDL_APP_SUCCESS;
+        printf("Level complete... Generating new\n");
+        level_t* level = level_generate(GRID_WIDTH, GRID_HEIGHT);
+        grid_reset(grid, level, 80.0f);
+        level_destroy(level);
+        return SDL_APP_CONTINUE;
     }
 
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255); // Black background

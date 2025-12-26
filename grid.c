@@ -23,11 +23,16 @@ typedef struct {
 	cell_state_t state;
 } cell_t;
 
+typedef enum { DRAG_NONE, DRAG_PAINT_PLUS, DRAG_ERASE_PLUS } drag_mode_t;
+
 struct grid_t {
 	int rows;
 	int cols;
 	float cell_size;
 	vector_t* cells; // cell_t
+	bool left_mouse_down;
+	int last_r, last_c;
+	drag_mode_t drag_mode;
 };
 
 static
@@ -94,9 +99,29 @@ grid_create(const level_t const* level, float cell_size) {
 	grid_t* grid = (grid_t*)malloc(sizeof(grid_t));
 	assert(grid);
 
+	grid_reset(grid, level, cell_size);
+
+	return grid;
+}
+
+void
+grid_reset(grid_t* grid, const level_t const* level, float cell_size) {
 	grid->rows = level->rows;
 	grid->cols = level->cols;
 	grid->cell_size = cell_size;
+
+	grid->left_mouse_down = false;
+	grid->drag_mode = DRAG_NONE;
+	grid->last_r = -1;
+	grid->last_c = -1;
+
+	if (grid->cells) {
+		V_FOREACH(grid->cells, cell_t, cell, c_i) {
+			free(cell);
+		}
+		vector_destroy(grid->cells);
+	}
+
 	grid->cells = vector_new(); // cell_t
 
 	int size = grid->rows * grid->cols;
@@ -108,40 +133,95 @@ grid_create(const level_t const* level, float cell_size) {
 		cell->state = CELL_EMPTY;
 		vector_add(grid->cells, cell);
 	}
+}
 
-	return grid;
+static void
+_apply_left_drag(grid_t* grid, int r, int c) {
+	cell_t* cell = (cell_t*)vector_get(grid->cells, r * grid->cols + c);
+
+	if (cell->state == CELL_QUEEN) return;
+
+	if (grid->drag_mode == DRAG_PAINT_PLUS) {
+		cell->state = CELL_PLUS;
+	}
+	else if (grid->drag_mode == DRAG_ERASE_PLUS) {
+		if (cell->state == CELL_PLUS) cell->state = CELL_EMPTY;
+	}
 }
 
 void
 grid_handle_event(grid_t* grid, SDL_Event* event) {
-	if (event->type != SDL_EVENT_MOUSE_BUTTON_DOWN) {
-		return;
-	}
+	switch (event->type) {
 
-	int c = event->button.x / grid->cell_size;
-	int r = event->button.y / grid->cell_size;
+		case SDL_EVENT_MOUSE_BUTTON_DOWN: {
+			int c = event->button.x / grid->cell_size;
+			int r = event->button.y / grid->cell_size;
 
-	cell_t* cell = (cell_t*)vector_get(grid->cells, r * grid->cols + c);
+			if (r < 0 || r >= grid->rows || c < 0 || c >= grid->cols) break;
 
-	if (event->button.button == SDL_BUTTON_LEFT) {
-		if (cell->state == CELL_QUEEN) {
-			return;
-		}
-		if (cell->state == CELL_PLUS) {
-			cell->state = CELL_EMPTY;
-		} else {
-			cell->state = CELL_PLUS;
-		}
-	}
+			if (event->button.button == SDL_BUTTON_LEFT) {
+				grid->left_mouse_down = true;
 
-	if (event->button.button == SDL_BUTTON_RIGHT) {
-		if (cell->state == CELL_QUEEN) {
-			cell->state = CELL_EMPTY;
-		} else {
-			if (_can_place_queen(grid, r, c)) {
-				cell->state = CELL_QUEEN;
+				// Determine drag intent based on what we clicked
+				cell_t* cell = (cell_t*)vector_get(grid->cells, r * grid->cols + c);
+				if (cell->state == CELL_QUEEN) break;
+
+				// Single-click toggle still works:
+				bool was_plus = (cell->state == CELL_PLUS);
+				cell->state = was_plus ? CELL_EMPTY : CELL_PLUS;
+
+				// Drag mode follows what the click just did
+				grid->drag_mode = was_plus ? DRAG_ERASE_PLUS : DRAG_PAINT_PLUS;
+
+				// IMPORTANT: prevent the first motion from re-processing same cell
+				grid->last_r = r;
+				grid->last_c = c;
+				break;
 			}
+
+			if (event->button.button == SDL_BUTTON_RIGHT) {
+				cell_t* cell = (cell_t*)vector_get(grid->cells, r * grid->cols + c);
+				if (cell->state == CELL_QUEEN) {
+					cell->state = CELL_EMPTY;
+				}
+				else {
+					if (_can_place_queen(grid, r, c)) {
+						cell->state = CELL_QUEEN;
+					}
+				}
+				break;
+			}
+			break;
 		}
+
+		case SDL_EVENT_MOUSE_BUTTON_UP:
+			if (event->button.button == SDL_BUTTON_LEFT) {
+				grid->left_mouse_down = false;
+				grid->drag_mode = DRAG_NONE;
+			}
+			break;
+
+		case SDL_EVENT_MOUSE_MOTION: {
+			if (!grid->left_mouse_down) break;
+
+			int c = event->motion.x / grid->cell_size;
+			int r = event->motion.y / grid->cell_size;
+
+			if (r < 0 || r >= grid->rows || c < 0 || c >= grid->cols) break;
+
+			if (r == grid->last_r && c == grid->last_c) break;
+
+			grid->last_r = r;
+			grid->last_c = c;
+
+			_apply_left_drag(grid, r, c);
+			break;
+		}
+
+		case SDL_EVENT_WINDOW_FOCUS_LOST:
+			grid->left_mouse_down = false;
+			grid->drag_mode = DRAG_NONE;
+			break;
 	}
 }
 
