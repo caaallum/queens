@@ -8,6 +8,10 @@ jobs:
   linux:
     name: Linux (Ubuntu)
     runs-on: ubuntu-latest
+    env:
+      VCPKG_ROOT: ${{ github.workspace }}/_vcpkg
+      VCPKG_DEFAULT_TRIPLET: x64-linux
+      VCPKG_INSTALLED_DIR: ${{ github.workspace }}/vcpkg_installed
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -17,9 +21,30 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ninja-build
 
+      - name: Clone vcpkg
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git "${VCPKG_ROOT}"
+
+      - name: Bootstrap vcpkg
+        run: |
+          "${VCPKG_ROOT}/bootstrap-vcpkg.sh"
+
+      - name: Cache vcpkg
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.VCPKG_INSTALLED_DIR }}
+            ${{ env.VCPKG_ROOT }}/downloads
+          key: vcpkg-${{ runner.os }}-${{ env.VCPKG_DEFAULT_TRIPLET }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
+          restore-keys: |
+            vcpkg-${{ runner.os }}-${{ env.VCPKG_DEFAULT_TRIPLET }}-
+
       - name: Configure
         run: |
-          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE="${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" \
+            -DVCPKG_INSTALLED_DIR="${VCPKG_INSTALLED_DIR}"
 
       - name: Build
         run: |
@@ -34,20 +59,42 @@ jobs:
   windows:
     name: Windows (MSVC)
     runs-on: windows-latest
+    env:
+      VCPKG_ROOT: ${{ github.workspace }}\_vcpkg
+      VCPKG_DEFAULT_TRIPLET: x64-windows
+      VCPKG_INSTALLED_DIR: ${{ github.workspace }}\vcpkg_installed
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Clone vcpkg
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git "$env:VCPKG_ROOT"
+
+      - name: Bootstrap vcpkg
+        run: |
+          & "$env:VCPKG_ROOT\bootstrap-vcpkg.bat"
+
+      - name: Cache vcpkg
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.VCPKG_INSTALLED_DIR }}
+            ${{ env.VCPKG_ROOT }}\downloads
+          key: vcpkg-${{ runner.os }}-${{ env.VCPKG_DEFAULT_TRIPLET }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
+          restore-keys: |
+            vcpkg-${{ runner.os }}-${{ env.VCPKG_DEFAULT_TRIPLET }}-
+
       - name: Configure
         run: |
-          cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
+            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake" `
+            -DVCPKG_INSTALLED_DIR="$env:VCPKG_INSTALLED_DIR"
 
       - name: Build
         run: |
           cmake --build build --config Release
 
-      # Your CMakeLists has a WIN32 POST_BUILD step that copies the SDL3 DLL
-      # next to Queens.exe (from SDL3::SDL3 target file).
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:

@@ -7,6 +7,8 @@
 #include <assert.h>
 #include <stdio.h>
 
+#include <SDL3_image/SDL_image.h>
+
 typedef struct {
 	int r, g, b;
 } color_t;
@@ -33,6 +35,7 @@ struct grid_t {
 	bool left_mouse_down;
 	int last_r, last_c;
 	drag_mode_t drag_mode;
+	SDL_Texture* crown;
 };
 
 static
@@ -95,11 +98,18 @@ _can_place_queen(const grid_t* grid, int row, int col) {
 }
 
 grid_t* 
-grid_create(const level_t const* level, float cell_size) {
+grid_create(SDL_Renderer *renderer, const level_t const* level, float cell_size) {
 	grid_t* grid = (grid_t*)malloc(sizeof(grid_t));
 	assert(grid);
+	grid->cells = NULL;
 
 	grid_reset(grid, level, cell_size);
+
+	grid->crown = IMG_LoadTexture(renderer, "assets/crown.png");
+	if (!grid->crown) {
+		SDL_LogError("Failed to load crown texture %s", SDL_GetError());
+		exit(1);
+	}
 
 	return grid;
 }
@@ -115,7 +125,7 @@ grid_reset(grid_t* grid, const level_t const* level, float cell_size) {
 	grid->last_r = -1;
 	grid->last_c = -1;
 
-	if (grid->cells) {
+	if (grid->cells != NULL) {
 		V_FOREACH(grid->cells, cell_t, cell, c_i) {
 			free(cell);
 		}
@@ -265,14 +275,12 @@ grid_draw(const grid_t* grid, SDL_Renderer* renderer) {
 			SDL_SetRenderDrawColor(renderer, cell->color.r, cell->color.g, cell->color.b, 255);
 			SDL_RenderFillRect(renderer, &rect);
 
-
 			if (cell->state == CELL_QUEEN) {
 				SDL_FRect queen_rect = { c * grid->cell_size + grid->cell_size * 0.15f,
 										 r * grid->cell_size + grid->cell_size * 0.15f,
 										 grid->cell_size * 0.7f,
 										 grid->cell_size * 0.7f };
-				SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-				SDL_RenderFillRect(renderer, &queen_rect);
+				SDL_RenderTexture(renderer, grid->crown, NULL, &queen_rect);
 			}
 
 			if (cell->state == CELL_PLUS) {

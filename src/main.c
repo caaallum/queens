@@ -1,8 +1,11 @@
 #define SDL_MAIN_USE_CALLBACKS 1  /* use the callbacks instead of main() */
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
+#include <SDL3_image/SDL_image.h>
+
 #include "grid.h"
 #include <stdio.h>
+
 
 #define GRID_WIDTH 5
 #define GRID_HEIGHT 5
@@ -35,7 +38,7 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[]) {
 
     level_t* level = level_generate(GRID_WIDTH, GRID_HEIGHT);
 
-	grid = grid_create(level, 80.0f);
+	grid = grid_create(renderer, level, 80.0f);
 
     level_destroy(level);
 

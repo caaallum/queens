@@ -7,7 +7,7 @@
 
 typedef struct grid_t grid_t;
 
-grid_t* grid_create(const level_t const *level, float cell_size);
+grid_t* grid_create(SDL_Renderer* renderer, const level_t const *level, float cell_size);
 
 void grid_reset(grid_t* grid, const level_t const* level, float cell_size);
 
